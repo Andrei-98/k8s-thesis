@@ -16,5 +16,5 @@
 
 
 ## To-Do
-- [ ] Finish base REAME
+- [ ] Finish base README
 - [ ] ...
