@@ -3,19 +3,19 @@ kind: Deployment
 metadata:
   name: test-app-deployment
   labels:
-    app: testo
+    app: test-app
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: testo
+      app: test-app
   template:
     metadata:
       labels:
-        app: testo
+        app: test-app
     spec:
       containers:
-      - name: testo
+      - name: test-app
         image: test-app:latest
         imagePullPolicy: Never
         ports:
