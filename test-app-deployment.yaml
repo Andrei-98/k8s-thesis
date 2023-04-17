@@ -17,5 +17,6 @@ spec:
       containers:
       - name: testo
         image: test-app:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 80
