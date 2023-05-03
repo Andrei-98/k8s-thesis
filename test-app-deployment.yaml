@@ -5,7 +5,7 @@ metadata:
   labels:
     app: test-app
 spec:
-  replicas: 2
+  replicas: 10
   selector:
     matchLabels:
       app: test-app
@@ -15,8 +15,17 @@ spec:
         app: test-app
     spec:
       containers:
-      - name: test-app
-        image: test-app
-        imagePullPolicy: Never
+      - name: c-test-app
+        image: wryandrei/c-test-app:latest
+        #command: ["./given_sim"]
+        #args: ["--kubelet-insecure-tls"]
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
+        resources: 
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "1G"
+            cpu: "190m" 
