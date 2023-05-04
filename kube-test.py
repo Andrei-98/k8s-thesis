@@ -44,7 +44,7 @@ def array_contents_to_int(inp_array):
     return results[0] if len(results) == 1 else results
 
 
-def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=True):
+def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=False):
 
     if conversion:
         bin_arr, job_arr, latency_arr = result_arr_to_int(bin_arr, job_arr, latency_arr)
@@ -105,19 +105,33 @@ v1 = client.CoreV1Api()
 pod_names = []
 running = True
 
-def find_pods():
+def find_pods(default_print=True):
     global pod_names
     pod_names = []
 
-    print("Listing relevant pods with their IPs:")
     ret = v1.list_namespaced_pod(watch=False, namespace="default")
 
-    for i in ret.items:
-        print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
-        print(i.status.container_statuses[0].state)
-        print(i.status.phase)
-        pod_names.append(i.metadata.name)
-        print("------------------------------")
+    if ret and ret.items:
+        print("Listing relevant pods with their IPs: (%s pods total)" % len(ret.items))
+
+        for i in ret.items:
+            if default_print:
+                status = "ok"
+
+                # override status if pod is locked in waiting (like back-off restart)
+                if i.status.container_statuses[0].state.waiting:
+                    if i.status.container_statuses[0].state.waiting.message:
+                        status = i.status.container_statuses[0].state.waiting.message.split()[0]
+
+                print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
+
+            else:
+                print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
+                print(i.status.container_statuses[0].state)
+                print(i.status.phase)
+                print("------------------------------")
+
+            pod_names.append(i.metadata.name)
 
 
 #resp = v1.connect_get_namespaced_pod_exec(pod_names[0], "default", command=exec_command)
@@ -234,9 +248,39 @@ def split_multiple_outputs(bin_us, job_comp, sched_del):
 
     return res_bin, res_job, res_delay
 
+
+def exec_one(target=0, retry=False):
+
+    if len(pod_names) == 0:
+        print("no pods currently loaded, please run find!")
+        return
+
+    succeeded, res = get_output(retry, None, target)
+
+    bin_us    = []
+    job_comp  = []
+    sched_del = []
+
+    if succeeded: # add the received data :-)
+
+        # convert the data to int:
+        res_bin, res_job, res_lat = array_contents_to_int([res[0], res[1], res[2]])
+
+        bin_us    = np.array(res_bin)
+        job_comp  = np.array(res_job)
+        sched_del = np.array(res_lat)
+
+        plot_graph(bin_us, job_comp, sched_del, f"exec-{target}-test-plot", False)
+
+
 # needs to be timed correctly :-)
 def exec_all():
-    retry_these = []
+
+    if len(pod_names) == 0:
+        print("no pods currently loaded, please run find!")
+        return
+
+    #retry_these = []
 
     bin_us    = []
     job_comp  = []
@@ -254,11 +298,6 @@ def exec_all():
             res_job, res_lat = array_contents_to_int([res[1], res[2]])
 
             if len(bin_us) < 1:
-
-                #bin_us    = np.array(res[0])
-                #job_comp  = np.array(res[1])
-                #sched_del = np.array(res[2])
-
                 res_bin = array_contents_to_int([res[0]])
 
                 bin_us    = np.array(res_bin)
@@ -266,58 +305,44 @@ def exec_all():
                 sched_del = np.array(res_lat)
 
             else:
-                #if res[1] == None or res[2] == None:
-                #    print(f"ERROR: target {target} returned None")
-                #elif len(job_comp) != len(res[1]):
-                #    print(f"ERROR: jobcomp len {len(job_comp)} != res1 len {len(res[1])}")
-                #else:
-                #job_comp  = np.add(np.array(job_comp),  np.array(res[1]))
-                #sched_del = np.add(np.array(sched_del), np.array(res[2]))
-
                 job_comp  = np.add(job_comp, np.array(res_job))
                 sched_del = np.add(sched_del, np.array(res_lat))
 
-    if len(retry_these) > 0:
-        print(f"failed execs: {retry_these}, attempting to brute force...")
-        count = 0
+    # if len(retry_these) > 0:
+    #     print(f"failed execs: {retry_these}, attempting to brute force...")
+    #     count = 0
 
-        while retry_these:
-            temp_retries = retry_these.copy()
+    #     while retry_these:
+    #         temp_retries = retry_these.copy()
 
-            for retry in temp_retries:
-                succeeded, res = get_output(False, None, retry)
+    #         for retry in temp_retries:
+    #             succeeded, res = get_output(False, None, retry)
                 
-                if succeeded:
-                    retry_these.remove(retry)
+    #             if succeeded:
+    #                 retry_these.remove(retry)
 
-                    res_job, res_lat = array_contents_to_int([res[1], res[2]])
+    #                 res_job, res_lat = array_contents_to_int([res[1], res[2]])
 
-                    if len(bin_us) < 1:
-                        #bin_us    = np.array(res[0])
-                        #job_comp  = np.array(res[1])
-                        #sched_del = np.array(res[2])
-                        res_bin = array_contents_to_int([res[0]])
+    #                 if len(bin_us) < 1:
+    #                     res_bin = array_contents_to_int([res[0]])
 
-                        bin_us    = np.array(res_bin)
-                        job_comp  = np.array(res_job)
-                        sched_del = np.array(res_lat)
+    #                     bin_us    = np.array(res_bin)
+    #                     job_comp  = np.array(res_job)
+    #                     sched_del = np.array(res_lat)
 
-                    else:
-                        #job_comp  = np.add(np.array(job_comp),  np.array(res[1]))
-                        #sched_del = np.add(np.array(sched_del), np.array(res[2]))
+    #                 else:
+    #                     job_comp  = np.array(res_job)
+    #                     sched_del = np.array(res_lat)
 
-                        job_comp  = np.array(res_job)
-                        sched_del = np.array(res_lat)
+    #         count += 1
+    #         if count >= 30:
+    #             print(f"failed to exec: {retry_these}, timeout")
+    #             break
 
-            count += 1
-            if count >= 30:
-                print(f"failed to exec: {retry_these}, timeout")
-                break
+    #         time.sleep(1)
 
-            time.sleep(1)
-
-        if len(retry_these) <= 0:
-            print("done!")
+    #     if len(retry_these) <= 0:
+    #         print("done!")
 
     if len(bin_us) > 0:
         plot_graph(bin_us, job_comp, sched_del, "combined-test-plot", False)
@@ -336,16 +361,6 @@ def get_output(should_retry=True, retry_amount=None, target=0):
 
         bin_us, job_comp, sched_del = capt_to_arrays(capt)
         res_bin, res_job, res_delay = split_multiple_outputs(bin_us, job_comp, sched_del)
-
-        # debug:
-        #print("bin")
-        #print(res_bin)
-        #print("job_comp")
-        #print(res_job)
-        #print("sched")
-        #print(res_delay)
-
-        #plot_graph(res_bin, res_job, res_delay, f"{target}-test-plot")
 
         return True, [res_bin, res_job, res_delay]
 
@@ -378,27 +393,53 @@ def exec_pod(should_retry=True, retry_amount=None, target=0) -> bool:
         plot_graph(output[0], output[1], output[2], f"{target}-test-plot")
 
 
-# WIP: not working yet, remove if crashes the code
+# supports less than 420 jobs
 def status_pod(target=None):
+
+    if len(pod_names) == 0:
+        print("no pods currently loaded, please run find!")
+        return
 
     if target:
         capt = subprocess.check_output(f"kubectl logs {pod_names[target]}", shell=True)
-        else:
-            return # placeholder
+        print("todo: fix single-target call")
 
-    statuses = []
-    for target in pod_names:
-        capt = subprocess.check_output(f"kubectl logs {pod_names}", shell=True)
+    else:
+        statuses = []
+        count = {}
+        count.setdefault(-1, 0)
+        count.setdefault('*', 0)
 
-        if capt:
-            for row in reversed(capt):
-                if row == "DONE":
+        for target in pod_names:
+            stdout = subprocess.run(['kubectl', 'logs', target], check=True, capture_output=True, text=True).stdout
+            lines = stdout.split('\n')
+
+            found = False
+            for line in reversed(lines):
+                if line == "DONE":
+                    found = True
                     statuses.append(420)
-                    pass 
-                elif row[:4] == "done":
-                    statuses.append(1)
-                    pass
+                    count['*'] += 1
+                    break 
+                elif line[:4] == "done":
+                    found = True
+                    curr_job = int(line.split()[1]) # "done {2}" <- target digit
+
+                    statuses.append(curr_job)
+
+                    if curr_job not in count:
+                        count[curr_job] = 0
+                    count[curr_job] += 1
+                    break
+
+            if not found:    
+                count[-1] += 1
                 statuses.append(-1)
+
+        for key in count:
+            print(f"{key} | {count[key]}")
+
+    return count
 
 
 def logs(target=0):
@@ -432,7 +473,8 @@ def display_help():
 
 while running:
     actions = {"help": display_help, "start": start_deployment, "drop": drop, 
-    "find": find_pods, "exec": exec_pod, "logs": logs, "exec-all": exec_all, "top": top}
+    "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
+    "status": status_pod}
 
     print("please enter a command:")
     inp = input()
@@ -442,7 +484,7 @@ while running:
 
     # exec 1 quick fix
     elif inp.split()[0] == "exec":
-        exec_pod(target=int(inp.split()[1]))
+        exec_one(target=int(inp.split()[1]))
 
     elif inp.split()[0] == "logs":
         logs(target=int(inp.split()[1]))
