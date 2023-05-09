@@ -1,11 +1,10 @@
-sk user for profilename 
+#sk user for profilename 
 read -p "Enter profile name: " PROFILENAME
 
- 
 
 # start minikube with specified resources and container runtime
 # minikube start -p $PROFILENAME --cpus 10 --memory 20g --disk-size=10g --container-runtime=crio
-minikube start -p $PROFILENAME --container-runtime=crio
+# minikube start -p $PROFILENAME --container-runtime=crio
 
  
 
@@ -46,3 +45,25 @@ minikube ssh -p=$PROFILENAME "chmod +x /tmp/tmp_script.sh && /tmp/tmp_script.sh"
 
 # remove the temporary script file
 rm tmp_script.sh
+
+## set up kublet to use criresmrg as a proxy
+sudo vi /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+[Unit]
+Wants=crio.service
+
+[Service]
+ExecStart=
+ExecStart=/var/lib/minikube/binaries/v1.26.3/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime=remote --container-runtime-endpoint=unix:///var/run/cri-resmgr/cri-resmgr.sock --hostname-override=p3 --kubeconfig=/etc/kubernetes/kubelet.conf --node-ip=192.168.49.2
+
+[Install]
+
+# sudo systemctl daemon-reload
+# sudo systemctl restart kubelet
+
+
+sudo cri-resmgr --force-config ~/cri-resource-manager/sample-configs/balloons-policy.cfg --runtime-socket /run/crio/crio.sock 
+
+## messages about failed to connect to socket can be ignored we are using a local configuration file with the --force-config and the agent socket is not is not used in this 
+
+
+ 
