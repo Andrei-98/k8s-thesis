@@ -11,6 +11,9 @@ import time
 import matplotlib.pyplot as plt 
 import numpy as np
 
+import asyncio
+import json
+
 def result_arr_to_int(bin_arr, job_arr, latency_arr):
     new_bin_arr = []
     for b in bin_arr:
@@ -255,6 +258,8 @@ def exec_one(target=0, retry=False):
         print("no pods currently loaded, please run find!")
         return
 
+    print("(receiving data from %s...)" % pod_names[target])
+
     succeeded, res = get_output(retry, None, target)
 
     bin_us    = []
@@ -354,7 +359,11 @@ def get_output(should_retry=True, retry_amount=None, target=0):
 
     MAX_RETRIES = 10
 
-    capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output.txt", shell=True)
+    # tc:
+    capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output_0.txt", shell=True)
+
+    #non-tc:
+    #capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output.txt", shell=True)
     
     if capt:
         print("----")
@@ -441,12 +450,106 @@ def status_pod(target=None):
 
     return count
 
+# =========================== TEST CASES & 'PROFILES' ==========================================
+
+# global data (yes I know, not the best idea but maybe fine for this project :-) )
+profiles = [] # see tc_profiles.json for more details!
+
+# todo: load profiles from the json specified above.
+with open("tc_profiles.json") as f:
+    profiles = json.load(f)
+
+#print("profiles loaded.")
+#print(profiles)
+
+
+# id determines which file the output gets stored into, should get stored into "output_(id).txt"
+async def tc(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000"):
+    #os.system(f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} -c 1 -t 10 -s 64000 -r 1344000 &")
+    #os.system(f"kubectl exec {pod_names[1]} -- /app/tc.sh {id} -c 1 -t 10 -s 64000 -r 1344000 &")
+    #subprocess.run(["kubectl", "exec", f"{pod_names[target]}", "--", "/app/tc.sh", f"{id}", "-c", "1", 
+    #"-t", "10", "-s", "64000", "-r", "1344000"], capture_output=False)
+
+    # blocks process:
+    #subprocess.Popen(["kubectl", "exec", f"{pod_names[target]}", "--", "/app/tc.sh", f"{id}", "-c", "1", 
+    #"-t", "10", "-s", "64000", "-r", "1344000"])
+
+    print(f"starting process for {pod_names[target]}")
+    proc = subprocess.Popen([f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} {params}"], shell=True)
+
+    # can kill process like:
+    # proc.kill()
+    
+    #os.fork()
+
+    return proc
+
+
+def tc_block(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000"):
+    os.system(f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} {params}")
+
+
+# input to this is a string containing each type and how many should be that kind
+# e.g: "LC 10 NLC 10"
+async def start_case(params):
+
+    # todo: clean input into {"name": amount}
+    words = params.split()
+
+    # error: not even amount of params
+    if len(words) % 2 != 0:
+        print("error: not even amount of params")
+        return
+
+    order_details = {}
+
+    count = 0
+    while count < len(words):
+        print(f"{test[count]}, {test[count+1]}")
+
+        # add the ordered "profile" (LC etc.) to the dict
+        # profile name | amount ordered
+        order_details[test[count]] = int(test[count+1])
+        count += 2
+
+    # todo: check that we have the correct amount of pods running...
+    pods_needed_total = sum(order_details.values())
+
+    if len(pod_names) < pods_needed_total:
+        print("error: not enough pods running to fulfill order")
+        return
+
+    # todo: get information for each profile
+
+    # todo: start amount of each profile, running according to their settings
+
+    # todo: await the finish of the test case
+
+    # ------------------------------------
+    # todo: gather results from each pod
+
+    # todo: handle the results
+
+    # todo: plot results to graphs
+    pass
+
 
 def logs(target=0):
     os.system(f"kubectl logs {pod_names[target]}")
 
+
 def top(target=0):
-    os.system(f"kubectl top pod {pod_names[target].split('/')[1]}")
+    print(pod_names[target])
+    #name = pod_names[target].split('/')[1]
+    #os.system(f"kubectl top pod {pod_names[target].split('/')[1]}")
+    os.system(f"kubectl top pod {pod_names[target]}")
+
+
+def ls(target=0):
+    print(pod_names[target])
+    #name = pod_names[target].split('/')[1]
+    #os.system(f"kubectl top pod {pod_names[target].split('/')[1]}")
+    os.system(f"kubectl exec {pod_names[target]} -- ls -la")
 
 
 def drop(deployment_name="test-app-deployment"):
@@ -471,20 +574,41 @@ def display_help():
     print("helpful text here")
 
 
-while running:
-    actions = {"help": display_help, "start": start_deployment, "drop": drop, 
-    "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
-    "status": status_pod}
+async def main():
+    while running:
+        actions = {"help": display_help, "start": start_deployment, "drop": drop, 
+        "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
+        "status": status_pod, "tc": tc, "ls": ls}
 
-    print("please enter a command:")
-    inp = input()
+        print("please enter a command:")
+        inp = input()
 
-    if inp in actions.keys():
-        actions[inp]()
+        args = inp.split()
 
-    # exec 1 quick fix
-    elif inp.split()[0] == "exec":
-        exec_one(target=int(inp.split()[1]))
+        # has args
+        if len(args) > 1:
+            if args[0] in actions:
+                # quick fix async
+                if args[0] == "tc":
+                    await actions[args[0]](int(args[1]))
 
-    elif inp.split()[0] == "logs":
-        logs(target=int(inp.split()[1]))
+                else:
+                    # currently works for arg 1 is int
+                    actions[args[0]](int(args[1]))
+
+        elif inp in actions.keys(): # no args
+            # quick fix async
+            if args[0] == "tc":
+                await actions[inp]()
+            else:
+                actions[inp]()
+
+        # # exec 1 quick fix
+        # elif inp.split()[0] == "exec":
+        #     exec_one(target=int(inp.split()[1]))
+
+        # elif inp.split()[0] == "logs":
+        #     logs(target=int(inp.split()[1]))
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,0 +1,14 @@
+{
+    "profiles": [
+        {
+            "name": "LC",
+            "params": "-c 1 -t 10 -s 64000 -r 1344000",
+            "run_amount": 5
+        },
+        {
+            "name": "NLC",
+            "params": "-c 1 -t 10 -s 64000 -r 1344000",
+            "run_amount": 1
+        }
+    ]
+}

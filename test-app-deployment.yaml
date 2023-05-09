@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: c-test-app
-        image: wryandrei/c-test-app:latest
+        image: wryandrei/c-test-app:params
         #command: ["./given_sim"]
         #args: ["--kubelet-insecure-tls"]
         imagePullPolicy: Always
@@ -28,4 +28,4 @@ spec:
             cpu: "25m"
           limits:
             memory: "1G"
-            cpu: "190m" 
+            cpu: "210m" 
