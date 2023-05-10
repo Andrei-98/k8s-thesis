@@ -108,31 +108,33 @@ v1 = client.CoreV1Api()
 pod_names = []
 running = True
 
-def find_pods(default_print=True):
+def find_pods(default_print=True, output=True):
     global pod_names
     pod_names = []
 
     ret = v1.list_namespaced_pod(watch=False, namespace="default")
 
     if ret and ret.items:
-        print("Listing relevant pods with their IPs: (%s pods total)" % len(ret.items))
+        if output:
+            print("Listing relevant pods with their IPs: (%s pods total)" % len(ret.items))
 
         for i in ret.items:
-            if default_print:
-                status = "ok"
+            if output:
+                if default_print:
+                    status = "ok"
 
-                # override status if pod is locked in waiting (like back-off restart)
-                if i.status.container_statuses[0].state.waiting:
-                    if i.status.container_statuses[0].state.waiting.message:
-                        status = i.status.container_statuses[0].state.waiting.message.split()[0]
+                    # override status if pod is locked in waiting (like back-off restart)
+                    if i.status.container_statuses[0].state.waiting:
+                        if i.status.container_statuses[0].state.waiting.message:
+                            status = i.status.container_statuses[0].state.waiting.message.split()[0]
 
-                print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
+                    print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
 
-            else:
-                print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
-                print(i.status.container_statuses[0].state)
-                print(i.status.phase)
-                print("------------------------------")
+                else:
+                    print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
+                    print(i.status.container_statuses[0].state)
+                    print(i.status.phase)
+                    print("------------------------------")
 
             pod_names.append(i.metadata.name)
 
@@ -452,10 +454,14 @@ def status_pod(target=None):
 
 # =========================== TEST CASES & 'PROFILES' ==========================================
 
+# automaticall retrieve pods on startup
+find_pods(True, False)
+print(f"pods loaded. ({len(pod_names)} found)")
+
 # global data (yes I know, not the best idea but maybe fine for this project :-) )
 profiles = [] # see tc_profiles.json for more details!
 
-# todo: load profiles from the json specified above.
+# load profiles from the json specified above.
 with open("tc_profiles.json") as f:
     profiles = json.load(f)["profiles"]
 
@@ -463,36 +469,43 @@ print("profiles loaded.")
 print(profiles)
 
 
+# HAVE YOU EVER WANTED TO SKIP INPUTTING A TARGET EVERY SINGLE COMMAND?
+# NOW INTRODUCING THE FRESH NEW FEATURE THAT WILL PUT ALL OTHER FEATURES TO SHAME
+# THEEEE ... TARGETBOTX2000!!!
+
+targeting_mode = False
+current_target = 0
+
+# THESE TWO SIMPLE LINES WILL SAVE YOU A WORLD OF TROUBLE!
+# AND ALL FOR THE LOW LOW LOOOW PRICE OF
+# ...
+# NOTHING!
+
+# AMAZING HOW NATURE DOES THAT, HUH?
+
+
 # id determines which file the output gets stored into, should get stored into "output_(id).txt"
 async def tc(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000"):
-    #os.system(f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} -c 1 -t 10 -s 64000 -r 1344000 &")
-    #os.system(f"kubectl exec {pod_names[1]} -- /app/tc.sh {id} -c 1 -t 10 -s 64000 -r 1344000 &")
-    #subprocess.run(["kubectl", "exec", f"{pod_names[target]}", "--", "/app/tc.sh", f"{id}", "-c", "1", 
-    #"-t", "10", "-s", "64000", "-r", "1344000"], capture_output=False)
-
-    # blocks process:
-    #subprocess.Popen(["kubectl", "exec", f"{pod_names[target]}", "--", "/app/tc.sh", f"{id}", "-c", "1", 
-    #"-t", "10", "-s", "64000", "-r", "1344000"])
 
     print(f"starting process for {pod_names[target]}")
     proc = subprocess.Popen([f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} {params}"], shell=True)
 
-    # can kill process like:
-    # proc.kill()
-    
-    #os.fork()
-
     return proc
 
 
-async def tc_block(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000", runs=1):
+async def tc_block(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000", runs=1, transform=False):
 
     returncodes = []
 
     # todo: lower range, runs a bit too many times
-    for _ in range(runs):
+    for current_run in range(runs):
         #os.system(f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} {params}")
-        proc = await asyncio.create_subprocess_exec("kubectl", "exec", pod_names[target], "--", "/app/tc.sh", str(id), *params.split())
+
+        if transform and (current_run+1 >= transform["occurs_at"] and current_run+1 < transform["occurs_at"]+transform["duration"]):
+            proc = await asyncio.create_subprocess_exec("kubectl", "exec", pod_names[target], "--", "/app/tc.sh", str(id), *transform["params"].split())
+
+        else:
+            proc = await asyncio.create_subprocess_exec("kubectl", "exec", pod_names[target], "--", "/app/tc.sh", str(id), *params.split())
 
         returncodes.append(await proc.wait())
 
@@ -546,7 +559,7 @@ async def start_case(params):
             # multi-instance support
             for count, pr_instance in enumerate(profiles[name]["instances"], start=1):
                 print(f"debug: starting {pod_names[target]} as {name} ({count})")
-                tasks.append(asyncio.ensure_future(tc_block(target, 0, pr_instance["params"], pr_instance["run_amount"])))
+                tasks.append(asyncio.ensure_future(tc_block(target, 0, pr_instance["params"], pr_instance["run_amount"], pr_instance["transform"])))
 
             target += 1 # <- multiple instances should go to same target
 
@@ -603,40 +616,92 @@ def let_me_out():
 
 
 def display_help():
-    print("helpful text here")
+    print("relevant commands:")
+    print(" * start: start deployment")
+    print(" * drop: drop deployment")
+    print(" * find: find all pods")
+
+    print("deprecated commands:")
+    print(" * status: used print messages to determine status, not working")
+
+
+
+def cmd(target, command):
+    os.system(f"kubectl exec {pod_names[target]} -- {command}")
+
 
 
 async def main():
+    old_main = True
+
     while running:
-        actions = {"help": display_help, "start": start_deployment, "drop": drop, 
-        "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
-        "status": status_pod, "tc": tc, "ls": ls}
 
-        print("please enter a command:")
-        inp = input()
+        if old_main:
+            actions = {"help": display_help, "start": start_deployment, "drop": drop, 
+            "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
+            "status": status_pod, "tc": tc, "ls": ls}
 
-        args = inp.split()
+            # commands where there is an int arg followed by the rest of input (str) as arg2
+            target_param_actions = {"cmd": cmd}
 
-        # has args
-        if len(args) > 1:
-            if args[0] in actions:
+            print("please enter a command:")
+            inp = input()
+
+            args = inp.split()
+
+            # has args
+            if len(args) > 1:
+                if args[0] in actions:
+
+                    if targeting_mode:
+                        target =  current_target
+                    else:
+                        target = int(args[1])
+
+                    # quick fix async
+                    if args[0] == "tc":
+                        await actions[args[0]](target)
+
+                    else:
+                        # currently works for arg 1 is int
+                        actions[args[0]](target)
+
+
+                elif args[0] in target_param_actions:
+                    target_param_actions[args[0]](int(args[1]), " ".join(args[2:]))
+
+            elif inp in actions.keys(): # no args
                 # quick fix async
                 if args[0] == "tc":
-                    await actions[args[0]](int(args[1]))
-
+                    await actions[inp]()
                 else:
-                    # currently works for arg 1 is int
-                    actions[args[0]](int(args[1]))
+                    actions[inp]()
 
-        elif inp in actions.keys(): # no args
-            # quick fix async
-            if args[0] == "tc":
-                await actions[inp]()
-            else:
-                actions[inp]()
+            elif inp == "debug":
+                await start_case("LC 3 NLC 2")
 
-        elif inp == "debug":
-            await start_case("LC 3 NLC 2")
+
+
+
+        # NEW MAIN VERSION: (WIP)
+        else:
+            no_target_actions = {"help": display_help, "start": start_deployment, "drop": drop,
+            "find": find_pods, "exec-all": exec_all, "debug": start_case}
+
+            target_actions = {"cmd": cmd, "exec": exec_one, "logs": logs, "top": top, "tc": tc, "ls": ls}
+
+            t = "none" if not targeting_mode else current_target
+            print(f"please enter a command: (target: {t})")
+            inp = input()
+
+            args = inp.split()
+
+            # non-targeting:
+            if args[0] in no_target_actions:
+                if len(args) > 1:
+                    pass
+
+
 
         # # exec 1 quick fix
         # elif inp.split()[0] == "exec":

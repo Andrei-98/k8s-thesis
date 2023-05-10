@@ -5,7 +5,12 @@
             "instances": [
                 {
                     "params": "-c 2 -t 10 -s 64000 -r 1344000",
-                    "run_amount": 5
+                    "run_amount": 5,
+                    "transform": {
+                        "occurs_at": 3,
+                        "duration": 1,
+                        "params": "-c 4 -t 10 -s 64000 -r 2688000"
+                    }
                 }
             ]
 
@@ -15,11 +20,13 @@
             "instances": [
                 {
                     "params": "-c 3 -t 20 -s 64000 -r 1344000",
-                    "run_amount": 1
+                    "run_amount": 1,
+                    "transform": false
                 },
                 {
                     "params": "-c 2 -t 50 -s 64000 -r 1344000",
-                    "run_amount": 1
+                    "run_amount": 1,
+                    "transform": false
                 }
             ]
         }
