@@ -1,14 +1,27 @@
 {
-    "profiles": [
+    "profiles": {
+        "LC":        
         {
-            "name": "LC",
-            "params": "-c 1 -t 10 -s 64000 -r 1344000",
-            "run_amount": 5
+            "instances": [
+                {
+                    "params": "-c 2 -t 10 -s 64000 -r 1344000",
+                    "run_amount": 5
+                }
+            ]
+
         },
-        {
-            "name": "NLC",
-            "params": "-c 1 -t 10 -s 64000 -r 1344000",
-            "run_amount": 1
+        "NLC":
+        { 
+            "instances": [
+                {
+                    "params": "-c 3 -t 20 -s 64000 -r 1344000",
+                    "run_amount": 1
+                },
+                {
+                    "params": "-c 2 -t 50 -s 64000 -r 1344000",
+                    "run_amount": 1
+                }
+            ]
         }
-    ]
+    }
 }

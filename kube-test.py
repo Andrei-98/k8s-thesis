@@ -457,10 +457,10 @@ profiles = [] # see tc_profiles.json for more details!
 
 # todo: load profiles from the json specified above.
 with open("tc_profiles.json") as f:
-    profiles = json.load(f)
+    profiles = json.load(f)["profiles"]
 
-#print("profiles loaded.")
-#print(profiles)
+print("profiles loaded.")
+print(profiles)
 
 
 # id determines which file the output gets stored into, should get stored into "output_(id).txt"
@@ -485,15 +485,25 @@ async def tc(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000"):
     return proc
 
 
-def tc_block(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000"):
-    os.system(f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} {params}")
+async def tc_block(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000", runs=1):
+
+    returncodes = []
+
+    # todo: lower range, runs a bit too many times
+    for _ in range(runs):
+        #os.system(f"kubectl exec {pod_names[target]} -- /app/tc.sh {id} {params}")
+        proc = await asyncio.create_subprocess_exec("kubectl", "exec", pod_names[target], "--", "/app/tc.sh", str(id), *params.split())
+
+        returncodes.append(await proc.wait())
+
+    return returncodes
 
 
 # input to this is a string containing each type and how many should be that kind
 # e.g: "LC 10 NLC 10"
 async def start_case(params):
 
-    # todo: clean input into {"name": amount}
+    # clean input into {"name": amount}
     words = params.split()
 
     # error: not even amount of params
@@ -505,25 +515,47 @@ async def start_case(params):
 
     count = 0
     while count < len(words):
-        print(f"{test[count]}, {test[count+1]}")
+        print(f"{words[count]}, {words[count+1]}")
 
         # add the ordered "profile" (LC etc.) to the dict
         # profile name | amount ordered
-        order_details[test[count]] = int(test[count+1])
+        order_details[words[count]] = int(words[count+1])
         count += 2
 
-    # todo: check that we have the correct amount of pods running...
+    # check that we have the correct amount of pods running...
     pods_needed_total = sum(order_details.values())
 
     if len(pod_names) < pods_needed_total:
         print("error: not enough pods running to fulfill order")
         return
 
-    # todo: get information for each profile
 
-    # todo: start amount of each profile, running according to their settings
+    tasks = []
+    target = 0
 
-    # todo: await the finish of the test case
+    # get information for each profile & 
+    # start amount of each profile, running according to their settings
+    for name in order_details:
+        if name not in profiles:
+            print(f"error: no such profile '{name}'")
+            return
+
+        # start amount of profile, according to settings
+        for i in range(order_details[name]):
+
+            # multi-instance support
+            for count, pr_instance in enumerate(profiles[name]["instances"], start=1):
+                print(f"debug: starting {pod_names[target]} as {name} ({count})")
+                tasks.append(asyncio.ensure_future(tc_block(target, 0, pr_instance["params"], pr_instance["run_amount"])))
+
+            target += 1 # <- multiple instances should go to same target
+
+        print(f"started {i+1} '{name}' tasks!")
+    
+
+    # await the finish of the test case
+    await asyncio.gather(*tasks)
+    print("done with test case!")
 
     # ------------------------------------
     # todo: gather results from each pod
@@ -602,6 +634,9 @@ async def main():
                 await actions[inp]()
             else:
                 actions[inp]()
+
+        elif inp == "debug":
+            await start_case("LC 3 NLC 2")
 
         # # exec 1 quick fix
         # elif inp.split()[0] == "exec":
