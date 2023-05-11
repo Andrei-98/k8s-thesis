@@ -52,47 +52,65 @@ def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=
     if conversion:
         bin_arr, job_arr, latency_arr = result_arr_to_int(bin_arr, job_arr, latency_arr)
 
-    count = 1
+    #count = 1
 
     # for each run
     if not hist:
+
+        # make 1 graph for each run done
         for i in range(len(bin_arr)):
             plt.xlabel("μs")
             plt.ylabel("# jobs")
 
-
             #original resolution:
             plt.plot(bin_arr[i], job_arr[i], label="job completion")
-            plt.savefig(f"{filename}-job-{count}.png")
+            plt.savefig(f"{filename}-job-{i+1}.png")
 
             plt.plot(bin_arr[i], latency_arr[i], label="latency")
 
             plt.legend(loc="upper center")
-            plt.savefig(f"{filename}-lat-{count}.png")
+            plt.savefig(f"{filename}-lat-{i+1}.png")
             
             plt.clf()
 
             # zoomed in version:
-            plt.plot(bin_arr[i][:points], job_arr[i][:points], label="job completion")
-            plt.savefig(f"{filename}-job-{count}-ZOOM.png")
 
-            plt.plot(bin_arr[i][:points], latency_arr[i][:points], label="latency")
+            if False: # <- temp remove zoomed version
+                plt.xlabel("μs")
+                plt.ylabel("# jobs")
 
-            plt.legend(loc="upper center")
-            plt.savefig(f"{filename}-lat-{count}-ZOOM.png")
-            
+                plt.plot(bin_arr[i][:points], job_arr[i][:points], label="job completion")
+                plt.savefig(f"{filename}-job-{i+1}-ZOOM.png")
+
+                plt.plot(bin_arr[i][:points], latency_arr[i][:points], label="latency")
+
+                plt.legend(loc="upper center")
+                plt.savefig(f"{filename}-lat-{i+1}-ZOOM.png")
+                
+                plt.clf()
+
+            #count += 1
+
+            # histogram attempt: 
+            all_data = []
+            for c in range(len(bin_arr[i])):
+                all_data += [bin_arr[i][c]] * job_arr[i][c]
+
+            plt.hist(all_data, bins=10)
+            plt.savefig(f"{filename}-hist-{i+1}.png")
+
             plt.clf()
 
-            count += 1
+
     else:
         for i in range(len(bin_arr)):
             new_edges = bin_arr[i] + [bin_arr[i][-1] + (bin_arr[i][-1] - bin_arr[i][-2])]
 
             plt.stairs(job_arr[i], new_edges)
-            plt.savefig(f"hist-{filename}-job-{count}.png")
+            plt.savefig(f"hist-{filename}-job-{i+1}.png")
 
             plt.clf()
-            count += 1
+            #count += 1
 
 # run this on the server where minikube deployment is, otherwise it won't work
 
@@ -281,7 +299,7 @@ def exec_one(target=0, retry=False):
 
 
 # needs to be timed correctly :-)
-def exec_all():
+def exec_all(file_count=0):
 
     if len(pod_names) == 0:
         print("no pods currently loaded, please run find!")
@@ -296,10 +314,8 @@ def exec_all():
     for target in range(len(pod_names)):
         succeeded, res = get_output(False, None, target)
 
-        if not succeeded:
-            retry_these.append(target)
-
-        else: # if success, add the received data :-)
+        if succeeded:
+             # if success, add the received data :-)
 
             # convert the data to int:
             res_job, res_lat = array_contents_to_int([res[1], res[2]])
@@ -315,55 +331,22 @@ def exec_all():
                 job_comp  = np.add(job_comp, np.array(res_job))
                 sched_del = np.add(sched_del, np.array(res_lat))
 
-    # if len(retry_these) > 0:
-    #     print(f"failed execs: {retry_these}, attempting to brute force...")
-    #     count = 0
-
-    #     while retry_these:
-    #         temp_retries = retry_these.copy()
-
-    #         for retry in temp_retries:
-    #             succeeded, res = get_output(False, None, retry)
-                
-    #             if succeeded:
-    #                 retry_these.remove(retry)
-
-    #                 res_job, res_lat = array_contents_to_int([res[1], res[2]])
-
-    #                 if len(bin_us) < 1:
-    #                     res_bin = array_contents_to_int([res[0]])
-
-    #                     bin_us    = np.array(res_bin)
-    #                     job_comp  = np.array(res_job)
-    #                     sched_del = np.array(res_lat)
-
-    #                 else:
-    #                     job_comp  = np.array(res_job)
-    #                     sched_del = np.array(res_lat)
-
-    #         count += 1
-    #         if count >= 30:
-    #             print(f"failed to exec: {retry_these}, timeout")
-    #             break
-
-    #         time.sleep(1)
-
-    #     if len(retry_these) <= 0:
-    #         print("done!")
-
     if len(bin_us) > 0:
-        plot_graph(bin_us, job_comp, sched_del, "combined-test-plot", False)
+        plot_graph(bin_us, job_comp, sched_del, f"{file_count}-combined-test-plot", False)
 
 
-def get_output(should_retry=True, retry_amount=None, target=0):
+def get_output(should_retry=True, retry_amount=None, target=0, file_count=0):
     #ret = os.system(f"kubectl exec {pod_names[0]} -- cat /app/output.txt")
     #print(ret)
 
     MAX_RETRIES = 10
 
     # tc:
-    capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output_0.txt", shell=True)
-
+    try:
+        capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output_{file_count}.txt", shell=True)
+    except subprocess.CalledProcessError:
+        return False, None
+    
     #non-tc:
     #capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output.txt", shell=True)
     
@@ -548,7 +531,7 @@ async def start_case(params):
 
     # get information for each profile & 
     # start amount of each profile, running according to their settings
-    for name in order_details:
+    for pr_count, name in enumerate(order_details):
         if name not in profiles:
             print(f"error: no such profile '{name}'")
             return
@@ -559,7 +542,7 @@ async def start_case(params):
             # multi-instance support
             for count, pr_instance in enumerate(profiles[name]["instances"], start=1):
                 print(f"debug: starting {pod_names[target]} as {name} ({count})")
-                tasks.append(asyncio.ensure_future(tc_block(target, 0, pr_instance["params"], pr_instance["run_amount"], pr_instance["transform"])))
+                tasks.append(asyncio.ensure_future(tc_block(target, pr_count, pr_instance["params"], pr_instance["run_amount"], pr_instance["transform"])))
 
             target += 1 # <- multiple instances should go to same target
 
@@ -572,6 +555,11 @@ async def start_case(params):
 
     # ------------------------------------
     # todo: gather results from each pod
+
+    # create combined graph for all profiles!
+    for pr_count in range(len(order_details)):
+        exec_all(pr_count)
+
 
     # todo: handle the results
 
@@ -678,7 +666,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 3 NLC 2")
+                await start_case("LC 8 NLC 5")
 
 
 
