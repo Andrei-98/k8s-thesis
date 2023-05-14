@@ -5,7 +5,7 @@ metadata:
   labels:
     app: test-app
 spec:
-  replicas: 13
+  replicas: 1
   selector:
     matchLabels:
       app: test-app
@@ -13,10 +13,12 @@ spec:
     metadata:
       labels:
         app: test-app
+      annotations:
+        balloon.balloons.cri-resource-manager.intel.com: quad
     spec:
       containers:
       - name: c-test-app
-        image: wryandrei/c-test-app:params
+        image: wryandrei/c-test-app:threads
         #command: ["./given_sim"]
         #args: ["--kubelet-insecure-tls"]
         imagePullPolicy: Always
