@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: NLC-deployment
+  labels:
+    app: NLC-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: NLC-app
+  template:
+    metadata:
+      labels:
+        app: NLC-app
+      annotations:
+        balloon.balloons.cri-resource-manager.intel.com: quad
+    spec:
+      containers:
+      - name: c-test-app
+        image: wryandrei/c-test-app:params
+        #command: ["./given_sim"]
+        #args: ["--kubelet-insecure-tls"]
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources: 
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "1G"
+            cpu: "210m" 

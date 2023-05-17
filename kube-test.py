@@ -621,6 +621,13 @@ def start_deployment():
             body=dep, namespace="default")
         print("Deployment created. status='%s'" % resp.metadata.name)
 
+    with open(path.join(path.dirname(__file__), "test-app-deployment-2.yaml")) as f:
+        dep = yaml.safe_load(f)
+        k8s_apps_v1 = client.AppsV1Api()
+        resp = k8s_apps_v1.create_namespaced_deployment(
+            body=dep, namespace="default")
+        print("Deployment created. status='%s'" % resp.metadata.name)
+
 
 def let_me_out():
     global running
