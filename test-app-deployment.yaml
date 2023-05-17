@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-app-deployment
+  name: atest-app-deployment
   labels:
-    app: test-app
+    app: atest-app
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: test-app
+      app: atest-app
   template:
     metadata:
       labels:
-        app: test-app
+        app: atest-app
       annotations:
         balloon.balloons.cri-resource-manager.intel.com: quad
     spec:
       containers:
       - name: c-test-app
-        image: wryandrei/c-test-app:threads
+        image: wryandrei/c-test-app:params
         #command: ["./given_sim"]
         #args: ["--kubelet-insecure-tls"]
         imagePullPolicy: Always
@@ -27,7 +27,7 @@ spec:
         resources: 
           requests:
             memory: "64Mi"
-            cpu: "25m"
+            cpu: "4000m"
           limits:
             memory: "1G"
-            cpu: "210m" 
+            cpu: "4000m" 

@@ -609,8 +609,10 @@ def ls(target=0):
     os.system(f"kubectl exec {pod_names[target]} -- ls -la")
 
 
-def drop(deployment_name="test-app-deployment"):
+def drop(deployment_name="atest-app-deployment"):
     os.system(f"kubectl delete deployment {deployment_name}")
+    os.system(f"kubectl delete deployment ncl-deployment")
+
 
 
 def start_deployment():
@@ -697,7 +699,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 8 NLC 5")
+                await start_case("LC 2 NLC 1")
 
 
 
