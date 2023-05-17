@@ -10,6 +10,7 @@ import time
 
 import matplotlib.pyplot as plt 
 import numpy as np
+import seaborn as sns
 
 import asyncio
 import json
@@ -48,37 +49,38 @@ def array_contents_to_int(inp_array):
 
 
 def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=False):
+    REG_PLOT = True
 
     if conversion:
         bin_arr, job_arr, latency_arr = result_arr_to_int(bin_arr, job_arr, latency_arr)
 
-    #count = 1
 
     # for each run
     if not hist:
 
         # make 1 graph for each run done
         for i in range(len(bin_arr)):
-            plt.xlabel("μs")
-            plt.ylabel("# jobs")
 
-            #original resolution:
-            plt.plot(bin_arr[i], job_arr[i], label="job completion")
-            plt.savefig(f"{filename}-job-{i+1}.png")
+            if REG_PLOT: 
+                plt.xlabel("μs")
+                plt.ylabel("# jobs")
 
-            plt.plot(bin_arr[i], latency_arr[i], label="latency")
+                #original resolution:
+                plt.plot(bin_arr[i], job_arr[i], label="job completion")
+                plt.savefig(f"{filename}-job-{i+1}.png")
 
-            plt.legend(loc="upper center")
-            plt.savefig(f"{filename}-lat-{i+1}.png")
-            
-            plt.clf()
+                plt.plot(bin_arr[i], latency_arr[i], label="latency")
 
-            # zoomed in version:
+                plt.legend(loc="upper center")
+                plt.savefig(f"{filename}-lat-{i+1}.png")
+                
+                plt.clf()
 
             if False: # <- temp remove zoomed version
                 plt.xlabel("μs")
                 plt.ylabel("# jobs")
 
+                # zoomed in version:
                 plt.plot(bin_arr[i][:points], job_arr[i][:points], label="job completion")
                 plt.savefig(f"{filename}-job-{i+1}-ZOOM.png")
 
@@ -89,15 +91,41 @@ def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=
                 
                 plt.clf()
 
-            #count += 1
 
             # histogram attempt: 
+
+            # create a list with each point instead of amount of occurences
             all_data = []
             for c in range(len(bin_arr[i])):
                 all_data += [bin_arr[i][c]] * job_arr[i][c]
 
-            plt.hist(all_data, bins=10)
-            plt.savefig(f"{filename}-hist-{i+1}.png")
+
+
+            # histogram un-normalized
+            if False: #<--- temp removed
+                plt.xlabel("μs")
+                plt.ylabel("# jobs")
+
+                plt.hist(all_data, bins=20)
+                plt.savefig(f"{filename}-hist-{i+1}.png")
+
+                plt.clf()
+
+            # normalized:
+            #plt.xlabel("μs")
+            #plt.ylabel("# jobs")
+
+            #weights = np.ones_like(all_data) / float(len(all_data))
+
+            #plt.hist(all_data, bins=range(1, max(all_data)+2), align="left", weights=weights)
+            #plt.xticks(range(1, max(all_data)+1))
+            #plt.savefig(f"NORM-{filename}-hist-{i+1}.png")
+
+            np_all_data = np.array(all_data)
+
+            h_plot = sns.histplot(data=np_all_data, stat="probability", bins=10)
+            fig = h_plot.get_figure()
+            fig.savefig(f"NORM-{filename}-hist-{i+1}.png")
 
             plt.clf()
 
@@ -110,7 +138,7 @@ def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=
             plt.savefig(f"hist-{filename}-job-{i+1}.png")
 
             plt.clf()
-            #count += 1
+
 
 # run this on the server where minikube deployment is, otherwise it won't work
 
@@ -118,10 +146,6 @@ config.load_kube_config()
 
 v1 = client.CoreV1Api()
 
-#print("Listing pods with their IPs:")
-#ret = v1.list_pod_for_all_namespaces(watch=False)
-#for i in ret.items:
-#    print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
 
 pod_names = []
 running = True
