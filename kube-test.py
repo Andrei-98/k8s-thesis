@@ -308,6 +308,7 @@ def get_output(should_retry=True, retry_amount=None, target=0, file_count=0, deb
         else:
             capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output_{file_count}.txt", shell=True)
     except subprocess.CalledProcessError:
+        print(f"--error: no file 'output_{file_count}' for pod {pod_names[target]}--")
         return False, None
     
     if capt:
