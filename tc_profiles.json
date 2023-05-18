@@ -4,12 +4,12 @@
         {
             "instances": [
                 {
-                    "params": "-c 2 -t 10 -s 64000 -r 1344000",
+                    "params": "-c 6 -t 10 -s 8800 -r 503440",
                     "run_amount": 5,
                     "transform": {
                         "occurs_at": 3,
                         "duration": 1,
-                        "params": "-c 3 -t 10 -s 64000 -r 1344000"
+                        "params": "-c 8 -t 10 -s 8800 -r 503440"
                     }
                 }
             ]
@@ -19,12 +19,12 @@
         { 
             "instances": [
                 {
-                    "params": "-c 3 -t 20 -s 64000 -r 1344000",
+                    "params": "-c 10 -t 20 -s 1 -r 2344000",
                     "run_amount": 1,
                     "transform": false
                 },
                 {
-                    "params": "-c 2 -t 50 -s 64000 -r 1344000",
+                    "params": "-c 2 -t 30 -s 8800 -r 503440",
                     "run_amount": 1,
                     "transform": false
                 }

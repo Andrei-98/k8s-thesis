@@ -5,7 +5,7 @@ metadata:
   labels:
     app: atest-app
 spec:
-  replicas: 2
+  replicas: 5
   selector:
     matchLabels:
       app: atest-app
@@ -14,7 +14,7 @@ spec:
       labels:
         app: atest-app
       annotations:
-        balloon.balloons.cri-resource-manager.intel.com: quad
+        balloon.balloons.cri-resource-manager.intel.com: lc-pool
     spec:
       containers:
       - name: c-test-app
@@ -27,7 +27,7 @@ spec:
         resources: 
           requests:
             memory: "64Mi"
-            cpu: "4000m"
+            cpu: "2000m"
           limits:
             memory: "1G"
             cpu: "4000m" 

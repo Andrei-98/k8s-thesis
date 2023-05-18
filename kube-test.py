@@ -699,7 +699,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 2 NLC 1")
+                await start_case("LC 5 NLC 2")
 
 
 
