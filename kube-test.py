@@ -15,7 +15,7 @@ import seaborn as sns
 import asyncio
 import json
 
-def result_arr_to_int(bin_arr, job_arr, latency_arr):
+""" def result_arr_to_int(bin_arr, job_arr, latency_arr):
     new_bin_arr = []
     for b in bin_arr:
         new_bin_arr.append([int(x) for x in b])
@@ -45,34 +45,39 @@ def array_contents_to_int(inp_array):
             new_cat_arr.append([int(x) for x in content])
         results.append(new_cat_arr)
 
-    return results[0] if len(results) == 1 else results
+    return results[0] if len(results) == 1 else results """
 
 
 def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=False):
     REG_PLOT = True
+    MEASURE_GUARANTEE = 10000 # to gather what jobs finish within <10ms
 
-    if conversion:
-        bin_arr, job_arr, latency_arr = result_arr_to_int(bin_arr, job_arr, latency_arr)
+    gathered_data = []
+
+    #stats = {"total": 0, "<10": 0}
+
+    # if conversion:
+    #     bin_arr, job_arr, latency_arr = result_arr_to_int(bin_arr, job_arr, latency_arr)
 
 
     # for each run
     if not hist:
 
         # make 1 graph for each run done
-        for i in range(len(bin_arr)):
+        for run in range(len(bin_arr)):
 
             if REG_PLOT: 
                 plt.xlabel("μs")
                 plt.ylabel("# jobs")
 
                 #original resolution:
-                plt.plot(bin_arr[i], job_arr[i], label="job completion")
-                plt.savefig(f"{filename}-job-{i+1}.png")
+                plt.plot(bin_arr[run], job_arr[run], label="job completion")
+                plt.savefig(f"{filename}-job-{run+1}.png")
 
-                plt.plot(bin_arr[i], latency_arr[i], label="latency")
+                plt.plot(bin_arr[run], latency_arr[run], label="latency")
 
                 plt.legend(loc="upper center")
-                plt.savefig(f"{filename}-lat-{i+1}.png")
+                plt.savefig(f"{filename}-lat-{run+1}.png")
                 
                 plt.clf()
 
@@ -81,25 +86,30 @@ def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=
                 plt.ylabel("# jobs")
 
                 # zoomed in version:
-                plt.plot(bin_arr[i][:points], job_arr[i][:points], label="job completion")
-                plt.savefig(f"{filename}-job-{i+1}-ZOOM.png")
+                plt.plot(bin_arr[run][:points], job_arr[run][:points], label="job completion")
+                plt.savefig(f"{filename}-job-{run+1}-ZOOM.png")
 
-                plt.plot(bin_arr[i][:points], latency_arr[i][:points], label="latency")
+                plt.plot(bin_arr[run][:points], latency_arr[run][:points], label="latency")
 
                 plt.legend(loc="upper center")
-                plt.savefig(f"{filename}-lat-{i+1}-ZOOM.png")
+                plt.savefig(f"{filename}-lat-{run+1}-ZOOM.png")
                 
                 plt.clf()
 
 
-            # histogram attempt: 
+            # stat gathering:
+            stats = {"total": sum(job_arr[run]), "<10": 0}
 
+            # histogram attempt: 
             # create a list with each point instead of amount of occurences
             all_data = []
-            for c in range(len(bin_arr[i])):
-                all_data += [bin_arr[i][c]] * job_arr[i][c]
+            for c in range(len(bin_arr[run])):
+                all_data += [bin_arr[run][c]] * job_arr[run][c]
 
+                if bin_arr[run][c] < MEASURE_GUARANTEE:
+                    stats["<10"] += job_arr[run][c]
 
+            gathered_data.append(stats)
 
             # histogram un-normalized
             if False: #<--- temp removed
@@ -107,27 +117,21 @@ def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=
                 plt.ylabel("# jobs")
 
                 plt.hist(all_data, bins=20)
-                plt.savefig(f"{filename}-hist-{i+1}.png")
+                plt.savefig(f"{filename}-hist-{run+1}.png")
 
                 plt.clf()
 
-            # normalized:
-            #plt.xlabel("μs")
-            #plt.ylabel("# jobs")
-
-            #weights = np.ones_like(all_data) / float(len(all_data))
-
-            #plt.hist(all_data, bins=range(1, max(all_data)+2), align="left", weights=weights)
-            #plt.xticks(range(1, max(all_data)+1))
-            #plt.savefig(f"NORM-{filename}-hist-{i+1}.png")
 
             np_all_data = np.array(all_data)
 
             h_plot = sns.histplot(data=np_all_data, stat="probability", bins=10)
             fig = h_plot.get_figure()
-            fig.savefig(f"NORM-{filename}-hist-{i+1}.png")
+            fig.savefig(f"NORM-{filename}-hist-{run+1}.png")
 
             plt.clf()
+
+        for run in range(len(gathered_data)):
+            print(f"run {run+1}: {gathered_data[run]}")
 
 
     else:
@@ -141,44 +145,51 @@ def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=
 
 
 # run this on the server where minikube deployment is, otherwise it won't work
-
-config.load_kube_config()
-
-v1 = client.CoreV1Api()
+try:
+    config.load_kube_config()
+    v1 = client.CoreV1Api()
+except:
+    print("could not load kube config. is kube profile running?")
 
 
 pod_names = []
 running = True
 
-def find_pods(default_print=True, output=True):
+def find_pods(default_print=True, output=True) -> bool:
     global pod_names
     pod_names = []
 
-    ret = v1.list_namespaced_pod(watch=False, namespace="default")
+    try:
+        ret = v1.list_namespaced_pod(watch=False, namespace="default")
 
-    if ret and ret.items:
-        if output:
-            print("Listing relevant pods with their IPs: (%s pods total)" % len(ret.items))
-
-        for i in ret.items:
+        if ret and ret.items:
             if output:
-                if default_print:
-                    status = "ok"
+                print("Listing relevant pods with their IPs: (%s pods total)" % len(ret.items))
 
-                    # override status if pod is locked in waiting (like back-off restart)
-                    if i.status.container_statuses[0].state.waiting:
-                        if i.status.container_statuses[0].state.waiting.message:
-                            status = i.status.container_statuses[0].state.waiting.message.split()[0]
+            for i in ret.items:
+                if output:
+                    if default_print:
+                        status = "ok"
 
-                    print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
+                        # override status if pod is locked in waiting (like back-off restart)
+                        if i.status.container_statuses[0].state.waiting:
+                            if i.status.container_statuses[0].state.waiting.message:
+                                status = i.status.container_statuses[0].state.waiting.message.split()[0]
 
-                else:
-                    print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
-                    print(i.status.container_statuses[0].state)
-                    print(i.status.phase)
-                    print("------------------------------")
+                        print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
 
-            pod_names.append(i.metadata.name)
+                    else:
+                        print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
+                        print(i.status.container_statuses[0].state)
+                        print(i.status.phase)
+                        print("------------------------------")
+
+                pod_names.append(i.metadata.name)
+        
+            return True
+    except:
+        return False
+
 
 
 #resp = v1.connect_get_namespaced_pod_exec(pod_names[0], "default", command=exec_command)
@@ -205,19 +216,35 @@ def capt_to_arrays(capt):
     # toggle this to false to print everything
     PRINT_ONLY_RELEVANT = True
 
-    for row in rows:
-        if not data_started and row.decode() == "0":
-            print()
+    result = {"bin": [], "job": [], "sched": []}
+    run = {"bin": [], "job": [], "sched": []}
 
+    for row in rows:
+        if row.decode()[0] == 'B' or row.decode()[0] == 'J':
+            continue
+
+        # s in sched_delay, start of new run
+        elif row.decode()[0] == 's':
             data_started = True
 
-            print_buffer += f"{row.decode()} "
+            if run["bin"]:
+                for name in ["bin", "job", "sched"]:
+                    result[name].append(run[name])
+            run = {"bin": [], "job": [], "sched": []}
 
-            bin_us.append(row.decode())
+            # if not data_started and row.decode() == "0":
+            #     print("hi")
+            #     print()
 
-            ends_count += 1
+            #     data_started = True
 
+            #     print_buffer += f"{row.decode()} "
 
+            #     bin_us.append(row.decode())
+
+            #     ends_count += 1
+
+            #elif data_started:
 
         elif data_started:
             #print(row.decode(), end=ends[ends_count])
@@ -235,12 +262,15 @@ def capt_to_arrays(capt):
             match ends_count:
                 case 0:
                     bin_us.append(row.decode())
+                    run["bin"].append(int(row.decode()))
 
                 case 1:
                     job_comp.append(row.decode())
+                    run["job"].append(int(row.decode()))
 
                 case 2:
                     sched_del.append(row.decode())
+                    run["sched"].append(int(row.decode()))
 
             ends_count += 1
 
@@ -251,11 +281,12 @@ def capt_to_arrays(capt):
         else:
             print(row.decode(), end=" ")
 
-    return bin_us, job_comp, sched_del
+    #return bin_us, job_comp, sched_del
+    return result["bin"], result["job"], result["sched"]
 
 
 # split the arrays: (on headers)
-def split_multiple_outputs(bin_us, job_comp, sched_del):
+""" def split_multiple_outputs(bin_us, job_comp, sched_del):
     res_bin   = []
     while 'Bin[us]' in bin_us:
 
@@ -293,7 +324,7 @@ def split_multiple_outputs(bin_us, job_comp, sched_del):
 
     res_delay.append(sched_del)
 
-    return res_bin, res_job, res_delay
+    return res_bin, res_job, res_delay """
 
 
 def exec_one(target=0, retry=False):
@@ -313,7 +344,8 @@ def exec_one(target=0, retry=False):
     if succeeded: # add the received data :-)
 
         # convert the data to int:
-        res_bin, res_job, res_lat = array_contents_to_int([res[0], res[1], res[2]])
+        #res_bin, res_job, res_lat = array_contents_to_int([res[0], res[1], res[2]])
+        res_bin, res_job, res_lat = [res[0], res[1], res[2]]
 
         bin_us    = np.array(res_bin)
         job_comp  = np.array(res_job)
@@ -323,11 +355,16 @@ def exec_one(target=0, retry=False):
 
 
 # needs to be timed correctly :-)
-def exec_all(file_count=0):
+def exec_all(file_count=0, debug_mode=False):
+    if debug_mode:
+        global pod_names
+        pod_names = ["debug"]
 
-    if len(pod_names) == 0:
+    if len(pod_names) == 0 and not debug_mode:
         print("no pods currently loaded, please run find!")
         return
+
+
 
     #retry_these = []
 
@@ -336,16 +373,20 @@ def exec_all(file_count=0):
     sched_del = []
 
     for target in range(len(pod_names)):
-        succeeded, res = get_output(False, None, target)
+        succeeded, res = get_output(False, None, target, file_count, debug_mode)
 
         if succeeded:
              # if success, add the received data :-)
 
             # convert the data to int:
-            res_job, res_lat = array_contents_to_int([res[1], res[2]])
+            #res_job, res_lat = array_contents_to_int([res[1], res[2]])
+
+            res_job, res_lat = [res[1], res[2]]
 
             if len(bin_us) < 1:
-                res_bin = array_contents_to_int([res[0]])
+                #res_bin = array_contents_to_int([res[0]])
+
+                res_bin = res[0]
 
                 bin_us    = np.array(res_bin)
                 job_comp  = np.array(res_job)
@@ -359,7 +400,7 @@ def exec_all(file_count=0):
         plot_graph(bin_us, job_comp, sched_del, f"{file_count}-combined-test-plot", False)
 
 
-def get_output(should_retry=True, retry_amount=None, target=0, file_count=0):
+def get_output(should_retry=True, retry_amount=None, target=0, file_count=0, debug_mode=False):
     #ret = os.system(f"kubectl exec {pod_names[0]} -- cat /app/output.txt")
     #print(ret)
 
@@ -367,7 +408,10 @@ def get_output(should_retry=True, retry_amount=None, target=0, file_count=0):
 
     # tc:
     try:
-        capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output_{file_count}.txt", shell=True)
+        if debug_mode:
+            capt = subprocess.check_output(f"cat ./test_data/output_{file_count}.txt", shell=True)
+        else:
+            capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output_{file_count}.txt", shell=True)
     except subprocess.CalledProcessError:
         return False, None
     
@@ -377,8 +421,10 @@ def get_output(should_retry=True, retry_amount=None, target=0, file_count=0):
     if capt:
         print("----")
 
-        bin_us, job_comp, sched_del = capt_to_arrays(capt)
-        res_bin, res_job, res_delay = split_multiple_outputs(bin_us, job_comp, sched_del)
+        #bin_us, job_comp, sched_del = capt_to_arrays(capt)
+        #res_bin, res_job, res_delay = split_multiple_outputs(bin_us, job_comp, sched_del)
+
+        res_bin, res_job, res_delay = capt_to_arrays(capt)
 
         return True, [res_bin, res_job, res_delay]
 
@@ -411,59 +457,12 @@ def exec_pod(should_retry=True, retry_amount=None, target=0) -> bool:
         plot_graph(output[0], output[1], output[2], f"{target}-test-plot")
 
 
-# supports less than 420 jobs
-def status_pod(target=None):
-
-    if len(pod_names) == 0:
-        print("no pods currently loaded, please run find!")
-        return
-
-    if target:
-        capt = subprocess.check_output(f"kubectl logs {pod_names[target]}", shell=True)
-        print("todo: fix single-target call")
-
-    else:
-        statuses = []
-        count = {}
-        count.setdefault(-1, 0)
-        count.setdefault('*', 0)
-
-        for target in pod_names:
-            stdout = subprocess.run(['kubectl', 'logs', target], check=True, capture_output=True, text=True).stdout
-            lines = stdout.split('\n')
-
-            found = False
-            for line in reversed(lines):
-                if line == "DONE":
-                    found = True
-                    statuses.append(420)
-                    count['*'] += 1
-                    break 
-                elif line[:4] == "done":
-                    found = True
-                    curr_job = int(line.split()[1]) # "done {2}" <- target digit
-
-                    statuses.append(curr_job)
-
-                    if curr_job not in count:
-                        count[curr_job] = 0
-                    count[curr_job] += 1
-                    break
-
-            if not found:    
-                count[-1] += 1
-                statuses.append(-1)
-
-        for key in count:
-            print(f"{key} | {count[key]}")
-
-    return count
 
 # =========================== TEST CASES & 'PROFILES' ==========================================
 
 # automaticall retrieve pods on startup
-find_pods(True, False)
-print(f"pods loaded. ({len(pod_names)} found)")
+if find_pods(True, False):
+    print(f"pods loaded. ({len(pod_names)} found)")
 
 # global data (yes I know, not the best idea but maybe fine for this project :-) )
 profiles = [] # see tc_profiles.json for more details!
@@ -642,9 +641,6 @@ def display_help():
     print(" * drop: drop deployment")
     print(" * find: find all pods")
 
-    print("deprecated commands:")
-    print(" * status: used print messages to determine status, not working")
-
 
 
 def cmd(target, command):
@@ -660,7 +656,7 @@ async def main():
         if old_main:
             actions = {"help": display_help, "start": start_deployment, "drop": drop, 
             "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
-            "status": status_pod, "tc": tc, "ls": ls}
+            "tc": tc, "ls": ls}
 
             # commands where there is an int arg followed by the rest of input (str) as arg2
             target_param_actions = {"cmd": cmd}
@@ -700,6 +696,11 @@ async def main():
 
             elif inp == "debug":
                 await start_case("LC 2 NLC 1")
+
+            elif inp == "wa":
+                # debug no-kube here
+                exec_all(0, True)
+
 
 
 
