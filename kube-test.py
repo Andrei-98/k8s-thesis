@@ -15,50 +15,12 @@ import seaborn as sns
 import asyncio
 import json
 
-""" def result_arr_to_int(bin_arr, job_arr, latency_arr):
-    new_bin_arr = []
-    for b in bin_arr:
-        new_bin_arr.append([int(x) for x in b])
-    #bin_arr = new_bin_arr
-
-    new_job_arr = []
-    for j in job_arr:
-        new_job_arr.append([int(x) for x in j])
-    #job_arr = new_job_arr
-
-    new_latency_arr = []
-    for l in latency_arr:
-        new_latency_arr.append([int(x) for x in l])
-    #latency_arr = new_latency_arr
-
-    return new_bin_arr, new_job_arr, new_latency_arr
-
-
-# assumes inp_array is array containing the bin arr, job arr and latency arr
-# where each of those contains arrays for each run
-def array_contents_to_int(inp_array):
-    results = []
-
-    for category in inp_array:
-        new_cat_arr = []
-        for content in category:
-            new_cat_arr.append([int(x) for x in content])
-        results.append(new_cat_arr)
-
-    return results[0] if len(results) == 1 else results """
-
 
 def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=False):
     REG_PLOT = True
     MEASURE_GUARANTEE = 10000 # to gather what jobs finish within <10ms
 
     gathered_data = []
-
-    #stats = {"total": 0, "<10": 0}
-
-    # if conversion:
-    #     bin_arr, job_arr, latency_arr = result_arr_to_int(bin_arr, job_arr, latency_arr)
-
 
     # for each run
     if not hist:
@@ -191,11 +153,8 @@ def find_pods(default_print=True, output=True) -> bool:
         return False
 
 
-
-#resp = v1.connect_get_namespaced_pod_exec(pod_names[0], "default", command=exec_command)
-#resp = v1.connect_post_namespaced_pod_exec(pod_names[0], "default", command=exec_command)
-
-# processes return of subprocess.check_output(...cat output.txt) into arrays
+# processes return of subprocess.check_output(...cat output.txt) into nested arrays for each run
+# 3 runs -> [[bin-run1],[bin-run2],[bin-run3]], [[j-r1],[j-r2],[j-r3]], [[s-r1],[s-r1],[s-r3]]
 def capt_to_arrays(capt):
     rows = capt.split()
 
@@ -207,17 +166,12 @@ def capt_to_arrays(capt):
 
     print_buffer = ""
 
-    bin_us    = []
-    job_comp  = []
-    sched_del = []
-
-    #temp_data = []
-
     # toggle this to false to print everything
     PRINT_ONLY_RELEVANT = True
 
     result = {"bin": [], "job": [], "sched": []}
     run = {"bin": [], "job": [], "sched": []}
+    run_amount = 0
 
     for row in rows:
         if row.decode()[0] == 'B' or row.decode()[0] == 'J':
@@ -225,29 +179,18 @@ def capt_to_arrays(capt):
 
         # s in sched_delay, start of new run
         elif row.decode()[0] == 's':
-            data_started = True
+            if not data_started:
+                data_started = True
 
+            # don't enter immediately before first run data gather
             if run["bin"]:
+                run_amount += 1
                 for name in ["bin", "job", "sched"]:
                     result[name].append(run[name])
             run = {"bin": [], "job": [], "sched": []}
 
-            # if not data_started and row.decode() == "0":
-            #     print("hi")
-            #     print()
-
-            #     data_started = True
-
-            #     print_buffer += f"{row.decode()} "
-
-            #     bin_us.append(row.decode())
-
-            #     ends_count += 1
-
-            #elif data_started:
 
         elif data_started:
-            #print(row.decode(), end=ends[ends_count])
             print_buffer += f"{row.decode()}{ends[ends_count]}"
 
             # we should print this
@@ -261,15 +204,12 @@ def capt_to_arrays(capt):
             # record data to the arrays
             match ends_count:
                 case 0:
-                    bin_us.append(row.decode())
                     run["bin"].append(int(row.decode()))
 
                 case 1:
-                    job_comp.append(row.decode())
                     run["job"].append(int(row.decode()))
 
                 case 2:
-                    sched_del.append(row.decode())
                     run["sched"].append(int(row.decode()))
 
             ends_count += 1
@@ -281,50 +221,18 @@ def capt_to_arrays(capt):
         else:
             print(row.decode(), end=" ")
 
-    #return bin_us, job_comp, sched_del
+
+    # add final run as well
+    if run["bin"]:
+        run_amount += 1
+        for name in ["bin", "job", "sched"]:
+            result[name].append(run[name])
+
+    # in case of a single run: (changed my mind, this is probably bad)
+    #if run_amount == 1:
+    #    return run["bin"], run["job"], run["sched"]
+
     return result["bin"], result["job"], result["sched"]
-
-
-# split the arrays: (on headers)
-""" def split_multiple_outputs(bin_us, job_comp, sched_del):
-    res_bin   = []
-    while 'Bin[us]' in bin_us:
-
-        # res_bin += [{**this part**},(first_find), ...]
-        res_bin.append(bin_us[:bin_us.index('Bin[us]')])
-
-        # bin_us = [...(first_find),{**this part**}]
-        bin_us = bin_us[bin_us.index('Bin[us]')+1:]
-
-    res_bin.append(bin_us)
-
-
-    res_job   = []
-    while 'Job_comp_time' in job_comp:
-        #job_comp = job_comp.split('Job_comp_time')
-
-        # res_job += [{**this part**},(first_find), ...]
-        res_job.append(job_comp[:job_comp.index('Job_comp_time')])
-
-        # job_comp = [...(first_find),{**this part**}]
-        job_comp = job_comp[job_comp.index('Job_comp_time')+1:]
-
-    res_job.append(job_comp)
-
-
-    res_delay = []
-    while 'sched_delay' in sched_del:
-        #sched_del = sched_del.split('sched_delay')
-
-        # res_delay += [{**this part**},(first_find), ...]
-        res_delay.append(sched_del[:sched_del.index('sched_delay')])
-
-        # sched_del = [...(first_find),{**this part**}]
-        sched_del = sched_del[sched_del.index('sched_delay')+1:]
-
-    res_delay.append(sched_del)
-
-    return res_bin, res_job, res_delay """
 
 
 def exec_one(target=0, retry=False):
@@ -343,13 +251,9 @@ def exec_one(target=0, retry=False):
 
     if succeeded: # add the received data :-)
 
-        # convert the data to int:
-        #res_bin, res_job, res_lat = array_contents_to_int([res[0], res[1], res[2]])
-        res_bin, res_job, res_lat = [res[0], res[1], res[2]]
-
-        bin_us    = np.array(res_bin)
-        job_comp  = np.array(res_job)
-        sched_del = np.array(res_lat)
+        bin_us    = np.array(res[0])
+        job_comp  = np.array(res[1])
+        sched_del = np.array(res[2])
 
         plot_graph(bin_us, job_comp, sched_del, f"exec-{target}-test-plot", False)
 
@@ -365,9 +269,6 @@ def exec_all(file_count=0, debug_mode=False):
         return
 
 
-
-    #retry_these = []
-
     bin_us    = []
     job_comp  = []
     sched_del = []
@@ -377,15 +278,9 @@ def exec_all(file_count=0, debug_mode=False):
 
         if succeeded:
              # if success, add the received data :-)
-
-            # convert the data to int:
-            #res_job, res_lat = array_contents_to_int([res[1], res[2]])
-
             res_job, res_lat = [res[1], res[2]]
 
             if len(bin_us) < 1:
-                #res_bin = array_contents_to_int([res[0]])
-
                 res_bin = res[0]
 
                 bin_us    = np.array(res_bin)
@@ -415,14 +310,8 @@ def get_output(should_retry=True, retry_amount=None, target=0, file_count=0, deb
     except subprocess.CalledProcessError:
         return False, None
     
-    #non-tc:
-    #capt = subprocess.check_output(f"kubectl exec {pod_names[target]} -- cat /app/output.txt", shell=True)
-    
     if capt:
         print("----")
-
-        #bin_us, job_comp, sched_del = capt_to_arrays(capt)
-        #res_bin, res_job, res_delay = split_multiple_outputs(bin_us, job_comp, sched_del)
 
         res_bin, res_job, res_delay = capt_to_arrays(capt)
 
@@ -577,17 +466,10 @@ async def start_case(params):
     print("done with test case!")
 
     # ------------------------------------
-    # todo: gather results from each pod
 
     # create combined graph for all profiles!
     for pr_count in range(len(order_details)):
         exec_all(pr_count)
-
-
-    # todo: handle the results
-
-    # todo: plot results to graphs
-    pass
 
 
 def logs(target=0):
@@ -596,15 +478,11 @@ def logs(target=0):
 
 def top(target=0):
     print(pod_names[target])
-    #name = pod_names[target].split('/')[1]
-    #os.system(f"kubectl top pod {pod_names[target].split('/')[1]}")
     os.system(f"kubectl top pod {pod_names[target]}")
 
 
 def ls(target=0):
     print(pod_names[target])
-    #name = pod_names[target].split('/')[1]
-    #os.system(f"kubectl top pod {pod_names[target].split('/')[1]}")
     os.system(f"kubectl exec {pod_names[target]} -- ls -la")
 
 
