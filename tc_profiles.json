@@ -9,7 +9,7 @@
                     "transform": {
                         "occurs_at": 3,
                         "duration": 1,
-                        "params": "-c 3 -t 20 -s 4200 -r 1603440"
+                        "params": "-c 1 -t 20 -s 4200 -r 1603440"
                     }
                 }
             ]
@@ -19,7 +19,7 @@
         { 
             "instances": [
                 {
-                    "params": "-c 4 -t 40 -s 4200 -r 1603440",
+                    "params": "-c 1 -t 40 -s 4200 -r 1603440",
                     "run_amount": 1,
                     "transform": false
                 },

@@ -574,7 +574,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 5 NLC 2")
+                await start_case("LC 1 NLC 1")
 
             elif inp == "wa":
                 # debug no-kube here

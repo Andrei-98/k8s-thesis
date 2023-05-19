@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ncl-app
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: ncl-app
@@ -13,21 +13,17 @@ spec:
     metadata:
       labels:
         app: ncl-app
-      annotations:
-        balloon.balloons.cri-resource-manager.intel.com: nlc-pool
     spec:
       containers:
       - name: c-test-app
         image: wryandrei/c-test-app:params
-        #command: ["./given_sim"]
-        #args: ["--kubelet-insecure-tls"]
         imagePullPolicy: Always
         ports:
         - containerPort: 80
         resources: 
           requests:
             memory: "64Mi"
-            cpu: "5000m"
+            cpu: "1000m"
           limits:
-            memory: "1G"
-            cpu: "5000m" 
+            memory: "64Mi"
+            cpu: "2000m" 
