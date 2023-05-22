@@ -5,7 +5,7 @@ metadata:
   labels:
     app: atest-app
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app: atest-app
@@ -26,4 +26,4 @@ spec:
             cpu: "2000m"
           limits:
             memory: "64Mi"
-            cpu: "4000m" 
+            cpu: "3000m" 

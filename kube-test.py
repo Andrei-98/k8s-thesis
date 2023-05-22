@@ -490,6 +490,7 @@ def ls(target=0):
 def drop(deployment_name="atest-app-deployment"):
     os.system(f"kubectl delete deployment {deployment_name}")
     os.system(f"kubectl delete deployment ncl-deployment")
+    os.system(f"kubectl delete deployment xnoise-app-deployment")
 
 
 
@@ -581,7 +582,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 2 NLC 1")
+                await start_case("LC 4 NLC 2")
 
             elif inp == "wa":
                 # debug no-kube here
