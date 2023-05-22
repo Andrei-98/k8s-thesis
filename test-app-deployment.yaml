@@ -5,7 +5,7 @@ metadata:
   labels:
     app: atest-app
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app: atest-app
@@ -13,21 +13,17 @@ spec:
     metadata:
       labels:
         app: atest-app
-      annotations:
-        balloon.balloons.cri-resource-manager.intel.com: quad
     spec:
       containers:
       - name: c-test-app
         image: wryandrei/c-test-app:params
-        #command: ["./given_sim"]
-        #args: ["--kubelet-insecure-tls"]
         imagePullPolicy: Always
         ports:
         - containerPort: 80
         resources: 
           requests:
             memory: "64Mi"
-            cpu: "4000m"
+            cpu: "2000m"
           limits:
-            memory: "1G"
-            cpu: "4000m" 
+            memory: "64Mi"
+            cpu: "3000m" 

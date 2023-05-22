@@ -517,6 +517,7 @@ def ls(target=0):
 def drop(deployment_name="atest-app-deployment"):
     os.system(f"kubectl delete deployment {deployment_name}")
     os.system(f"kubectl delete deployment ncl-deployment")
+    os.system(f"kubectl delete deployment xnoise-app-deployment")
 
 
 
@@ -529,6 +530,13 @@ def start_deployment():
         print("Deployment created. status='%s'" % resp.metadata.name)
 
     with open(path.join(path.dirname(__file__), "test-app-deployment-2.yaml")) as f:
+        dep = yaml.safe_load(f)
+        k8s_apps_v1 = client.AppsV1Api()
+        resp = k8s_apps_v1.create_namespaced_deployment(
+            body=dep, namespace="default")
+        print("Deployment created. status='%s'" % resp.metadata.name)
+
+    with open(path.join(path.dirname(__file__), "noise-app-deployment.yaml")) as f:
         dep = yaml.safe_load(f)
         k8s_apps_v1 = client.AppsV1Api()
         resp = k8s_apps_v1.create_namespaced_deployment(
@@ -627,7 +635,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 2 NLC 1")
+                await start_case("LC 4 NLC 2")
 
             elif inp == "wa":
                 # debug no-kube here

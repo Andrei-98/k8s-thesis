@@ -1,29 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ncl-deployment
+  name: xnoise-app-deployment
   labels:
-    app: ncl-app
+    app: xnoise-app
 spec:
-  replicas: 2
+  replicas: 5
   selector:
     matchLabels:
-      app: ncl-app
+      app: xnoise-app
   template:
     metadata:
       labels:
-        app: ncl-app
+        app: xnoise-app
     spec:
       containers:
-      - name: c-test-app
-        image: wryandrei/c-test-app:params
+      - name: xnoise-app
+        image: wryandrei/c-test-app:noise
         imagePullPolicy: Always
         ports:
         - containerPort: 80
         resources: 
           requests:
             memory: "64Mi"
-            cpu: "4000m"
+            cpu: "500m"
           limits:
             memory: "64Mi"
-            cpu: "4000m" 
+            cpu: "1000m" 
