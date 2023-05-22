@@ -508,6 +508,13 @@ def start_deployment():
             body=dep, namespace="default")
         print("Deployment created. status='%s'" % resp.metadata.name)
 
+    with open(path.join(path.dirname(__file__), "noise-app-deployment.yaml")) as f:
+        dep = yaml.safe_load(f)
+        k8s_apps_v1 = client.AppsV1Api()
+        resp = k8s_apps_v1.create_namespaced_deployment(
+            body=dep, namespace="default")
+        print("Deployment created. status='%s'" % resp.metadata.name)
+
 
 def let_me_out():
     global running
@@ -574,7 +581,7 @@ async def main():
                     actions[inp]()
 
             elif inp == "debug":
-                await start_case("LC 4 NLC 2")
+                await start_case("LC 2 NLC 1")
 
             elif inp == "wa":
                 # debug no-kube here
