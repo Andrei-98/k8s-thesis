@@ -5,7 +5,7 @@ metadata:
   labels:
     app: atest-app
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: atest-app

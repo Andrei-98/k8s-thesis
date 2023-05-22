@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ncl-app
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: ncl-app
@@ -23,7 +23,7 @@ spec:
         resources: 
           requests:
             memory: "64Mi"
-            cpu: "1000m"
+            cpu: "4000m"
           limits:
             memory: "64Mi"
-            cpu: "2000m" 
+            cpu: "4000m" 
