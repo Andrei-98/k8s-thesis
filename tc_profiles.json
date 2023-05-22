@@ -1,5 +1,11 @@
 {
     "profiles": {
+        "WATCH":
+        { 
+            "type": "pending",
+            "name": "ncl-deployment",
+            "watch_duration": 60
+        },
         "LC":        
         {
             "instances": [
@@ -12,8 +18,8 @@
                         "params": "-c 3 -t 10 -s 64000 -r 1344000"
                     }
                 }
-            ]
-
+            ],
+            "type": "tc"
         },
         "NLC":
         { 
@@ -28,7 +34,8 @@
                     "run_amount": 1,
                     "transform": false
                 }
-            ]
+            ],
+            "type": "tc"
         }
     }
 }

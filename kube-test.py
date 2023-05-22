@@ -1,4 +1,4 @@
-from kubernetes import client, config
+from kubernetes import client, config, watch
 from kubernetes.stream import stream
 
 import os
@@ -14,6 +14,8 @@ import seaborn as sns
 
 import asyncio
 import json
+
+import re
 
 
 def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=False):
@@ -117,9 +119,14 @@ except:
 pod_names = []
 running = True
 
-def find_pods(default_print=True, output=True) -> bool:
+pending_pods = []
+
+def find_pods(output=True) -> bool:
     global pod_names
+    global pending_pods
+
     pod_names = []
+    pending_pods = []
 
     try:
         ret = v1.list_namespaced_pod(watch=False, namespace="default")
@@ -130,23 +137,20 @@ def find_pods(default_print=True, output=True) -> bool:
 
             for i in ret.items:
                 if output:
-                    if default_print:
-                        status = "ok"
+                    status = "ok"
 
-                        # override status if pod is locked in waiting (like back-off restart)
-                        if i.status.container_statuses[0].state.waiting:
-                            if i.status.container_statuses[0].state.waiting.message:
-                                status = i.status.container_statuses[0].state.waiting.message.split()[0]
+                    # override status if pod is locked in waiting (like back-off restart)
+                    if i.status.container_statuses[0].state.waiting:
+                        if i.status.container_statuses[0].state.waiting.message:
+                            status = i.status.container_statuses[0].state.waiting.message.split()[0]
 
-                        print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
-
-                    else:
-                        print("%s\t%s\t%s" % (i.status.pod_ip, i.metadata.namespace, i.metadata.name))
-                        print(i.status.container_statuses[0].state)
-                        print(i.status.phase)
-                        print("------------------------------")
+                    print("%s\t%s\t%s" % (i.metadata.name, i.status.phase, status))
 
                 pod_names.append(i.metadata.name)
+
+                # pending pod addon:
+                if i.status.phase == "Pending":
+                    pending_pods.append(i.metadata.name)
         
             return True
     except:
@@ -351,7 +355,7 @@ def exec_pod(should_retry=True, retry_amount=None, target=0) -> bool:
 # =========================== TEST CASES & 'PROFILES' ==========================================
 
 # automaticall retrieve pods on startup
-if find_pods(True, False):
+if find_pods(False):
     print(f"pods loaded. ({len(pod_names)} found)")
 
 # global data (yes I know, not the best idea but maybe fine for this project :-) )
@@ -363,21 +367,6 @@ with open("tc_profiles.json") as f:
 
 print("profiles loaded.")
 print(profiles)
-
-
-# HAVE YOU EVER WANTED TO SKIP INPUTTING A TARGET EVERY SINGLE COMMAND?
-# NOW INTRODUCING THE FRESH NEW FEATURE THAT WILL PUT ALL OTHER FEATURES TO SHAME
-# THEEEE ... TARGETBOTX2000!!!
-
-targeting_mode = False
-current_target = 0
-
-# THESE TWO SIMPLE LINES WILL SAVE YOU A WORLD OF TROUBLE!
-# AND ALL FOR THE LOW LOW LOOOW PRICE OF
-# ...
-# NOTHING!
-
-# AMAZING HOW NATURE DOES THAT, HUH?
 
 
 # id determines which file the output gets stored into, should get stored into "output_(id).txt"
@@ -407,6 +396,21 @@ async def tc_block(target=0, id=0, params="-c 1 -t 10 -s 64000 -r 1344000", runs
 
     return returncodes
 
+async def await_starttime(podname, timeout, start_time):
+    w = watch.Watch()
+    core_v1 = client.CoreV1Api()
+
+    for event in w.stream(func=core_v1.list_namespaced_pod,
+                            namespace="default",
+                            timeout_seconds=timeout):
+        if event["object"].metadata.name == podname and event["object"].status.phase == "Running":
+            w.stop()
+            end_time = time.time()
+            print(f"{podname} started in {end_time-start_time} sec")
+            return end_time # <- we might want to change this into the exec command result
+
+    return False
+
 
 # input to this is a string containing each type and how many should be that kind
 # e.g: "LC 10 NLC 10"
@@ -428,7 +432,7 @@ async def start_case(params):
 
         # add the ordered "profile" (LC etc.) to the dict
         # profile name | amount ordered
-        order_details[words[count]] = int(words[count+1])
+        order_details[words[count]] = 0 if words[count+1] == "?" else int(words[count+1])
         count += 2
 
     # check that we have the correct amount of pods running...
@@ -442,6 +446,25 @@ async def start_case(params):
     tasks = []
     target = 0
 
+
+    # WATCH handling:
+    if "WATCH" in order_details:
+        # find all pending pods
+        if "WATCH" in order_details and "name" in profiles["WATCH"]:
+            r = re.compile(f"{profiles['WATCH']['name']}-.*")
+            relevant_pods = list(filter(r.match, pod_names))
+
+            # do something with these relevant pods?
+            c = 0
+            for c, podname in enumerate(relevant_pods, start=1):
+                tasks.append(asyncio.ensure_future(await_starttime(podname, profiles["WATCH"]["watch_duration"], time.time())))
+
+            if c:
+                print(f"started {c} pending->running watches!")
+            else:
+                printf("no relevant pods found for watching. please check name set in tc_profiles.json")
+
+
     # get information for each profile & 
     # start amount of each profile, running according to their settings
     for pr_count, name in enumerate(order_details):
@@ -449,6 +472,7 @@ async def start_case(params):
             print(f"error: no such profile '{name}'")
             return
 
+        started = False
         # start amount of profile, according to settings
         for i in range(order_details[name]):
 
@@ -457,9 +481,12 @@ async def start_case(params):
                 print(f"debug: starting {pod_names[target]} as {name} ({count})")
                 tasks.append(asyncio.ensure_future(tc_block(target, pr_count, pr_instance["params"], pr_instance["run_amount"], pr_instance["transform"])))
 
+            if not started:
+                started = True
             target += 1 # <- multiple instances should go to same target
 
-        print(f"started {i+1} '{name}' tasks!")
+        if started:
+            print(f"started {i+1} '{name}' tasks!")
     
 
     # await the finish of the test case
@@ -526,9 +553,35 @@ def cmd(target, command):
     os.system(f"kubectl exec {pod_names[target]} -- {command}")
 
 
+def get_target(args):
+    if targeting_mode:
+        return current_target, args[1:]
+    else:
+        if len(args) < 2:
+            print("no target parameter! defaulting to 0...")
+            return 0, []
+        return args[1], args[2:]
+
 
 async def main():
-    old_main = True
+    old_main = False
+    verbose_main = True
+
+    # HAVE YOU EVER WANTED TO SKIP INPUTTING A TARGET EVERY SINGLE COMMAND?
+    # NOW INTRODUCING THE FRESH NEW FEATURE THAT WILL PUT ALL OTHER FEATURES TO SHAME
+    # THEEEE ... TARGETBOTX2000!!!
+    global targeting_mode
+    global current_target
+
+    targeting_mode = False
+    current_target = 0
+
+    # THESE TWO SIMPLE LINES WILL SAVE YOU A WORLD OF TROUBLE!
+    # AND ALL FOR THE LOW LOW LOOOW PRICE OF
+    # ...
+    # NOTHING!
+
+    # AMAZING HOW NATURE DOES THAT, HUH?
 
     while running:
 
@@ -582,10 +635,73 @@ async def main():
 
 
 
+        elif verbose_main: # duplication strat, maybe leads to much more readable
+
+            t = "none" if not targeting_mode else current_target
+            print(f"please enter a command: (target: {t})")
+            inp = input()
+
+            args = inp.split()
+
+            match args[0]:
+
+                case "help":
+                    display_help()
+
+                case "start":
+                    start_deployment()
+
+                case "drop":
+                    drop()
+
+                case "find":
+                    find_pods()
+
+                case "tc":
+                    target, rest_args = get_target(args)
+                    await tc(target, *rest_args)
+
+                case "exec":
+                    target, rest_args = get_target(args)
+                    exec_one(target, *rest_args)
+
+                case "exec-all":
+                    exec_all(*args[1:])
+
+                case "debug":
+                    await start_case(" ".join(args[1:]))
+
+                case "cmd":
+                    target, rest_args = get_target(args)
+                    cmd(target, *rest_args)
+
+                case "ls":
+                    target, rest_args = get_target(args)
+                    ls(target, *rest_args)
+
+                case "logs":
+                    target, rest_args = get_target(args)
+                    logs(target, *rest_args)
+
+                case "top":
+                    target, rest_args = get_target(args)
+                    top(target, *rest_args)
+                
+                case "target":
+                    if len(args) == 1:
+                        print("targeting mode toggled.")
+                        targeting_mode = not targeting_mode
+                    elif len(args) == 2:
+                        print(f"target switched to {args[1]}.")
+                        current_target = int(args[1])
 
 
+        # idk... this main version sucks. it's not readable at all and attempts to simplify and 
+        # generalize have only overcomplicated instead
         # NEW MAIN VERSION: (WIP)
         else:
+            needs_await = ["tc", "debug"]
+
             no_target_actions = {"help": display_help, "start": start_deployment, "drop": drop,
             "find": find_pods, "exec-all": exec_all, "debug": start_case}
 
@@ -599,8 +715,38 @@ async def main():
 
             # non-targeting:
             if args[0] in no_target_actions:
-                if len(args) > 1:
-                    pass
+                if len(args) > 1: # if param -> no_target
+                    if args[0] in needs_await:
+                        await no_target_actions[args[0]](" ".join(args[1:])) # send rest of line as arg string
+                    else:
+                        no_target_actions[args[0]](" ".join(args[1:]))
+
+                else: # if no param, just go
+                    if args[0] in needs_await:
+                        await no_target_actions[args[0]]()
+                    else:
+                        no_target_actions[args[0]]()
+
+            # targeting:
+            elif args[0] in target_actions:
+                if len(args) == 2: # if param -> target
+                    if args[0] in needs_await:
+                        await target_actions[args[0]](args[1])
+                    else:
+                        target_actions[args[0]](args[1])
+                elif len(args) == 1: # no target - error?
+                    if targeting_mode:
+                        if args[0] in needs_await:
+                            await target_actions[args[0]](current_target)
+                        else:
+                            target_actions[args[0]](current_target)
+                    else:
+                        print("no")
+                else: # if no param, just go
+                    if args[0] in needs_await:
+                        await target_actions[args[0]](" ".join(args[1:])) # send rest of line as arg string
+                    else:
+                        target_actions[args[0]](" ".join(args[1:]))
 
 
 
