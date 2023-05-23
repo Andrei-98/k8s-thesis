@@ -3,7 +3,7 @@
         "WATCH":
         { 
             "type": "pending",
-            "name": "ncl-deployment",
+            "name": "xnoise-app-deployment",
             "watch_duration": 60
         },
         "LC":        
