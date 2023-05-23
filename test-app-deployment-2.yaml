@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: ncl-app
+      annotations:
+        balloon.balloons.cri-resource-manager.intel.com: nlc-pool
     spec:
       containers:
       - name: c-test-app

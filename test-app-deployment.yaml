@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: atest-app
+      annotations:
+        balloon.balloons.cri-resource-manager.intel.com: lc-pool
     spec:
       containers:
       - name: c-test-app

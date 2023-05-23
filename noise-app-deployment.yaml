@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: xnoise-app
+      annotations:
+        balloon.balloons.cri-resource-manager.intel.com: extra-pool
     spec:
       containers:
       - name: xnoise-app
