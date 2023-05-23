@@ -1,5 +1,6 @@
 from kubernetes import client, config, watch
 from kubernetes.stream import stream
+from create_gantt import create_gantt_chart
 
 import os
 from os import path
@@ -16,6 +17,7 @@ import asyncio
 import json
 
 import re
+
 
 
 def plot_graph(bin_arr, job_arr, latency_arr, filename, conversion=True, points=25, hist=False):
@@ -462,7 +464,7 @@ async def start_case(params):
             if c:
                 print(f"started {c} pending->running watches!")
             else:
-                printf("no relevant pods found for watching. please check name set in tc_profiles.json")
+                print(f"no relevant pods found for watching. please check name set in tc_profiles.json")
 
 
     # get information for each profile & 
@@ -596,7 +598,7 @@ async def main():
         if old_main:
             actions = {"help": display_help, "start": start_deployment, "drop": drop, 
             "find": find_pods, "exec": exec_one, "logs": logs, "exec-all": exec_all, "top": top,
-            "tc": tc, "ls": ls}
+            "tc": tc, "ls": ls, "gantt": create_gantt_chart}
 
             # commands where there is an int arg followed by the rest of input (str) as arg2
             target_param_actions = {"cmd": cmd}
