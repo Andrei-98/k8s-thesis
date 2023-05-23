@@ -11,9 +11,9 @@
             "instances": [
                 {
                     "params": "-c 1 -t 30 -s 1100 -r 420000",
-                    "run_amount": 1,
+                    "run_amount": 2,
                     "transform": {
-                        "occurs_at": 3,
+                        "occurs_at": 2,
                         "duration": 1,
                         "params": "-c 2 -t 30 -s 1100 -r 420000"
                     }
