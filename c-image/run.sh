@@ -1,28 +1,15 @@
-#!/bin/sh
+#!/bin/bash
 
-#echo START
+# Get the current hour
+current_hour=$(date +%H)
 
-# for i in 1 2 3 4 5
-# do
-#     echo "run $i"
-#     #./given_sim -c 1 -t 10 -s 64000 -r 1344000 >> output.txt
-#     ./given_sim -c 1 -t 10 -s 64000 -r 1344000 >> output.txt
+if ((current_hour < 1)); then
+    ./given_sim -c 4 -t 3600 -s 1100 -r 420000 >> output.txt
+    ./given_sim -c 1 -t 5400 -s 1100 -r 420000 >> output.txt
+else
+    ./given_sim -c 1 -t 5400 -s 1100 -r 420000 >> output.txt
+    # Sleep for 420 minutes
+fi
 
-#     # random sleep time 1-50ms
-#     #sleep_time=$((RANDOM % 50 + 1))
-#     #echo "sleeping for $sleep_time ms"
-    
-#     #sleep 0.0$sleep_time
-
-#     echo "done $i"
-#     python3 ./random_sleep.py
-# done
-
-# echo DONE
-# echo "finished with tasks! sleeping for 3 minutes for data collection."
-# sleep 3m
-# echo "finished sleeping."
-# sleep 20
-
-echo "container started, sleeping & ready for 10 minutes!"
-sleep 10m
+echo DONE
+sleep 420m
