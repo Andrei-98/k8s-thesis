@@ -5,7 +5,7 @@ source /etc/os-release
 pkg=cri-resource-manager_${CRIRM_VERSION}_${ID}-${VERSION_ID}_amd64.deb; curl -LO https://github.com/intel/cri-resource-manager/releases/download/v${CRIRM_VERSION}/${pkg}; sudo dpkg -i ${pkg}; rm ${pkg}
 
 # create configuration and start cri-resoruce-manager
-sudo cp balloon.cfg /etc/cri-resmgr/fallback.cfg
+sudo cp balloon_pools.cfg /etc/cri-resmgr/fallback.cfg
 sudo systemctl enable cri-resource-manager && sudo systemctl start cri-resource-manager
 
 
